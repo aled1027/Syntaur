@@ -35,7 +35,7 @@ layers = [
 mlp = MLP(dim_in, dim_out, layers)
 
 # train models
-sgd(datasets, mlp, n_epochs = N_EPOCHS)
+sgd(datasets, mlp, n_epochs = N_EPOCHS, verbose = False, patience = 50)
 
 test_x, test_y = mnist_test
 data = test_x.get_value()
@@ -56,7 +56,9 @@ def summarize():
 
 errs = summarize()
 
+"""
 for e in errs:
     v = data[e]
     print "prediction: %d" %(int(mlp.predict(v)))
     util.visualize_image(v)
+"""

@@ -63,7 +63,7 @@ def get_validate(valid_set, model):
     )
 
 def sgd(datasets, model, n_epochs = 100, batch_size = 100, learning_rate = .13,
-        L1_reg = 0, L2_reg = 0.001, patience = 10000, imp_thresh = .995,
+        L1_reg = 0, L2_reg = 0.001, patience = 50, imp_thresh = .995,
         patience_inc = 2, verbose = False):
     
     # unpack dataset
@@ -81,7 +81,7 @@ def sgd(datasets, model, n_epochs = 100, batch_size = 100, learning_rate = .13,
     index = T.lscalar('index')
     y = T.ivector('y')
 
-    cost = model.cost(y) + L1_reg * model.L1 + L2_reg * model.L2
+    cost = model.cost(y) + (L1_reg * model.L1) + (L2_reg * model.L2)
 
     # defince funcs for checking performance on test set, valid set
     test_model = theano.function(
@@ -123,14 +123,17 @@ def sgd(datasets, model, n_epochs = 100, batch_size = 100, learning_rate = .13,
     start_time = time.clock()
     done_looping = False
 
+    print("Training model for %d epochs with minibatch size %d, with validation frequency %d, patience %d"%
+          (n_epochs, batch_size, valid_freq, patience)
+      )
     epoch_i = 0
     while epoch_i < n_epochs and (not done_looping):
         epoch_i += 1
         print "epoch %d" %epoch_i 
         for batch_i in xrange(n_train_batches):
-            if verbose:
-                print "epoch %d, batch %d/%d"  %(epoch_i, batch_i, n_train_batches)
             minibatch_avg_cost = train_model(batch_i)
+            if verbose:
+                print "epoch %d, batch %d/%d, cost: %f"  %(epoch_i, batch_i, n_train_batches, minibatch_avg_cost)
             j = epoch_i - 1
             if (epoch_i % valid_freq) == 0:
                 # validate 
@@ -152,7 +155,7 @@ def sgd(datasets, model, n_epochs = 100, batch_size = 100, learning_rate = .13,
                     test_score = np.mean(test_losses)
 
                     if this_valid_loss < (best_valid_loss * imp_thresh):
-                        patience = max(patience, j * patience_inc)
+                        patience = max(patience, j + patience_inc)
 
                     print(
                         'epoch %d, minibatch %d/%d, test err of best model: %f.'%
