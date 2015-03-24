@@ -14,6 +14,6 @@ def main():
     skipgram = SkipGram(patents, vec_size=vec_size, context_size=context_size)
     t = skipgram.tokenizer
     Xs, Ys, egs = text_util.skipgram_preprocess(patents, t, context_size)
-    multi_sgd(Xs, Ys, skipgram, verbose = True)
-    return sg
+    multi_sgd(Xs, Ys, skipgram, n_epochs = 200, verbose = True)
+    return skipgram
     
