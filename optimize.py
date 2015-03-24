@@ -6,6 +6,7 @@ import theano.tensor as T
 import theano
 import time
 import numpy as np
+from util import as_shared
 
 def simple_sgd(train_xy, model, n_epochs = 100, batch_size = 600, learning_rate = .13, verbose = False):
     y = T.ivector('y')
@@ -62,7 +63,7 @@ def get_validate(valid_set, model):
         }
     )
 
-def sgd(datasets, model, n_epochs = 100, batch_size = 100, learning_rate = .13,
+def uni_sgd(datasets, model, n_epochs = 100, batch_size = 100, learning_rate = .13,
         L1_reg = 0, L2_reg = 0.001, patience = 50, imp_thresh = .995,
         patience_inc = 2, verbose = False):
     
@@ -180,4 +181,77 @@ def sgd(datasets, model, n_epochs = 100, batch_size = 100, learning_rate = .13,
         )
     )
     
+
+# Assumes model has 'dims_in' and 'dims_out' attribute.
+# Intended to work witn 'NeuralNetwork' object, so maybe should just 
+# be a class method.
+def multi_sgd(Xs, Ys, model, n_epochs = 1, batch_size = 600, 
+              learning_rate = .13, verbose = False):
+    """
+
+    :type Xs: list
+    :param Xs: List of theano shared variables representing the numpy input matrices.
     
+    :type Ys: list
+    :param Ys: List of theano shared variables representing the numpy input label vectors.
+    """
+    print "[multi_sgd] Validating Inputs..."
+    dims_in = [X.shape[1] for X in Xs]
+    # BELOW IS A SKIPGRAM-SPECIFIC HACK - FIX THIS!!
+    dims_out = [Xs[0].shape[1] for _ in Ys] 
+    if not(model.dims_in == dims_in):
+        raise RuntimeError("Input dimension mismatch")
+    if not(len(Ys) == len(model.output_layers)):
+        raise RuntimeError("Output dimension mismatch")
+    if not all([X.shape[0] == Y.shape[0] for X,Y in zip(Xs,Ys)]):
+        raise RuntimeError("Number of Examples is not the same for all Xs,Ys.")
+
+    print "[multi_sgd] Getting Inputs as Theano Shared Variables..."
+    Xs = map(lambda x: as_shared(x), Xs)
+    Ys = map(lambda y: as_shared(y, True), Ys)
+    n_train_batches = Xs[0].get_value().shape[0] / batch_size
+    
+    ys = [T.ivector() for _ in dims_out]
+    index = T.lscalar('index')
+
+    cost = model.cost(ys)
+    gParams = [T.grad(cost=cost, wrt = param) for param in model.params]
+    updates = [(param, param - learning_rate * grad) for 
+               (param, grad) in zip(model.params, gParams)]
+
+    X_givens = {
+        X_sym: X_data[index * batch_size: (index+1) * batch_size]
+        for (X_sym, X_data) in zip(model.Xs, Xs)
+    }
+
+    y_givens = {
+        Y_sym: Y_data[index * batch_size: (index+1) * batch_size]
+        for (Y_sym, Y_data) in zip(ys, Ys)
+    }
+    
+    # merge X_givens and y_givens
+    givens = X_givens.copy()
+    givens.update(y_givens)
+
+    print "[multi_sgd] Compiling Theano functions..."
+
+    train_model = theano.function(
+        [index],
+        outputs = cost,
+        updates = updates,
+        givens = givens
+    )
+
+    print "[multi_sgd] Beginning training..."
+
+    for epoch_i in xrange(n_epochs):
+        print "Epoch %d. " %epoch_i
+        for batch_i in xrange(n_train_batches):
+            e = train_model(batch_i)
+            if verbose:
+                print "Epoch %d, batch %d, trainining error %f" %(epoch_i, batch_i, e)
+                
+    print "[multi_sgd] Done training."
+    
+    
+

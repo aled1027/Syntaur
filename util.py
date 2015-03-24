@@ -30,6 +30,16 @@ def shared_dataset(data_xy):
     )
     return shared_x, T.cast(shared_y, 'int32')
 
+def as_shared(ndarr, cast_to_int = False):
+    shared_arr =  theano.shared(
+        np.asarray(ndarr, dtype = theano.config.floatX),
+        borrow = True
+    )
+    if cast_to_int:
+        return T.cast(shared_arr, 'int32')
+    else:
+        return shared_arr
+
 def quick_load_mnist():
     return map(shared_dataset, load_mnist(MNPATH))
 

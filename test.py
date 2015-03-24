@@ -6,9 +6,9 @@ import util
 import random
 from models import LogisticRegression, SimpleMLP, MLP
 from layers import Layer, SoftmaxLayer
-from optimize import simple_sgd, get_test, sgd
+from optimize import simple_sgd, get_test, uni_sgd
 from evaluate import which_err
-import multiprocessing as mp
+# import multiprocessing as mp
 import theano
 
 # GLOBAL
@@ -35,7 +35,7 @@ layers = [
 mlp = MLP(dim_in, dim_out, layers)
 
 # train models
-sgd(datasets, mlp, n_epochs = N_EPOCHS, verbose = False, patience = 50)
+uni_sgd(datasets, mlp, n_epochs = N_EPOCHS, verbose = False, patience = 50)
 
 test_x, test_y = mnist_test
 data = test_x.get_value()
@@ -51,8 +51,9 @@ def test(N_SAMPLE = 10):
 def summarize():
     test_model = get_test(mnist_test, mlp)
     mlp_err = test_model()
-    print "test err: mlp_err"
-    return which_err(mnist_test, mlp)
+    print "test err: %f" %mlp_err
+    w = which_err(mnist_test, mlp)
+    return [i for (i,v) in enumerate(list(w)) if v > 0]
 
 errs = summarize()
 

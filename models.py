@@ -2,7 +2,8 @@
 models.py
 """
 
-from layers import Layer, SoftmaxLayer
+from layers import Layer, SoftmaxLayer, ConnectionSpec
+import text_util
 import theano
 import theano.tensor as T
 
@@ -10,6 +11,8 @@ class Model(object):
     def __init__(self, dim_in, dim_out):
         self.dim_in = dim_in 
         self.dim_out = dim_out
+        self.X = T.dmatrix()
+        self.v = T.dvector()
         
     def predict(self, x):
         raise NotImplementedError("Model must provide a predict(.) method.")
@@ -25,8 +28,6 @@ class LogisticRegression(Model):
         super(LogisticRegression, self).__init__(dim_in, dim_out)
         self.s = SoftmaxLayer(dim_in, dim_out)
         self.params = self.s.params
-        self.X = T.dmatrix('X')
-        self.v = T.dvector('v')
         self.s.connect(self.X, self.v)
 
     def predict(self, x):
@@ -46,8 +47,6 @@ class SimpleMLP(Model):
             Layer(dim_in, dim_hidden),
             SoftmaxLayer(dim_hidden, dim_out)
         ]
-        self.X = T.dmatrix('X')
-        self.v = T.dvector('v')
         self.layers[0].connect(self.X, self.v)
         self.layers[1].connect(self.layers[0].output, self.layers[0].vec_out)
         self.prediction = self.layers[1].prediction
@@ -65,10 +64,8 @@ class SimpleMLP(Model):
         return self.layers[1].errors(y)
 
 class MLP(Model):
-    def __init__(self, dim_in, dim_out, layers, regularized = False):
+    def __init__(self, dim_in, dim_out, layers):
         super(MLP, self).__init__(dim_in, dim_out)
-        self.X = T.dmatrix('X')
-        self.v = T.dvector('v')
         self.n_layers = len(layers)
         self.layers = layers
         self.layers[0].connect(self.X, self.v)
@@ -90,11 +87,94 @@ class MLP(Model):
     def errors(self, y):
         return self.layers[self.n_layers - 1].errors(y)
 
+"""
+class SkipGram(NeuralNetwork):
+    def __init__(self, sentences, vec_size, context_size):
+        vocab, dataset = util.word2vec.preprocess(sentences)
+        super(SkipGram, self).__init__()
+"""
+
+class NeuralNetwork(object):
+    """
+    A class for a general neural network model. Supports multiple input layers 
+    and multiple output layers. Initialization is slightly more complicated
+    to allow for this flexibility, and as a consequence it doesn't extend
+    the earlier 'Model' OOP, as this was unintentionally univariate-chauvinistic.
+    """
+    def __init__(self, dims_in, dims_out, connection_spec):
+        """
+    
+        :type dims_in: list
+        :param dims_in: A list of dimensions of input vectors. 
+        
+        :type dims_out: list
+        :param dims_out: A list of dimensions of output vectors.
+
+        :type connection_spec: layers.ConnectionSpec
+        :param connection_spec: An object that specifies the layers and connections.
+        """
+        self.dims_in = dims_in
+        self.dims_out = dims_out
+        self.Xs = [T.dmatrix() for _ in dims_in]
+        self.vs = [T.dvector() for _ in dims_in]
+        self.layers = connection_spec.layers
+        self.input_layers = connection_spec.input_layers
+        if not(len(self.Xs) == len(self.vs) == len(self.input_layers)):
+            raise RuntimeError("The number of inputs do not agree")
+
+        # Assummes everything has been ordered correctly.
+        for l, X, v in zip(self.input_layers, self.Xs, self.vs):
+            l.connect(X,v)
+        connection_spec.connecter()
+        self.output_layers = connection_spec.output_layers
+        self.params = sum([l.params for l in self.layers],[])
+        self.L1 = T.sum([abs(param).sum() for param in self.params])
+        self.L2 = T.sqrt(T.sum([(param ** 2).sum() for param in self.params ]))
+        #self.prediction = theano.scan(lambda x: x.prediction, sequences=self.output_layers)
+        self.predicter = theano.function(self.vs, [x.prediction for x in self.output_layers])
 
 
+    # Assumes vectors given in same order as constructor CS.
+    def cost(self, ys):
+        if not (len(ys) == len(self.output_layers)):
+            raise RuntimeError("Number of outputs does not agree.")
+        return T.sum([l.cost(y) for (l,y) in zip(self.output_layers, ys)])
 
+    # Assumes vectors given in same order as constructor CS.
+    def errors(self, ys):
+        if not (len(ys) == len(self.output_layers)):
+            raise RuntimeError("Number of outputs does not agree.")
+        return [l.errors(y) for (l,y) in zip(self.output_layers, ys)]
+
+class SkipGram(NeuralNetwork):
+    def __init__(self, sentences, vec_size = 50, context_size = 1):
+        self.vec_size = vec_size
+        self.context_size = context_size
+        print "[Skipgram Init] Tokenizing %d sentences" %len(sentences)
+        t = text_util.Tokenizer(sentences)
+        print "[Skipgram Init] done. Building connection spec."
+        n_vocab = t.n_tokens
+        layers = [Layer(n_vocab, vec_size)] + [SoftmaxLayer(vec_size, n_vocab) 
+                                               for _ in range(2*context_size)]
+        connects = {0: range(1,len(layers))}
+        cs = ConnectionSpec(layers, connects)
+        dims_in = [n_vocab]
+        dims_out = [n_vocab for _ in range(context_size*2)]
+        self.tokenizer = t
+        
+        print "[Skipgram Init] done. Doing regular NN init."
+        super(SkipGram, self).__init__(dims_in, dims_out, cs)
+
+    def __str__(self):
+        return "<SkipGram Model> with vocab size %d, context size %d, vec size %d" %(self.t.n_tokens, self.context_size, self.vec_size)
         
 
-        
+def test():
+    patents = text_util.getpats(1000)
+    vec_size, context_size = (20, 2)
+    sg = SkipGram(patents, vec_size = vec_size, context_size = context_size)
+    t = sg.tokenizer
+    Xs, Ys, egs = text_util.skipgram_preprocess(patents, t, context_size)
+    return patents, sg, Xs, Ys, egs, t
 
     

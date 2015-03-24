@@ -20,6 +20,8 @@ class Layer(object):
     def __init__(self, dim_in, dim_out, prng = PRNG, activation = SIGMOID):
         self.CONNECTED = False
         self.activation = activation
+        self.dim_in = dim_in
+        self.dim_out = dim_out
 
         # initialize parameters
         self.W = theano.shared(
@@ -40,6 +42,10 @@ class Layer(object):
         )
 
         self.params = [self.W, self.b]
+
+    def __str__(self):
+        return "<Generic Layer> with %d inputs and %d outputs" %(self.dim_in, self.dim_out)
+
         
     def connect(self, X, v):
         self.X = X
@@ -68,6 +74,16 @@ class OutputLayer(Layer):
         super(OutputLayer, self).__init__(dim_in, dim_out, activation = activation)
         self.W.set_value(np.zeros((dim_in, dim_out), dtype = theano.config.floatX))
 
+    def __str__(self):
+        activ_str = "Linear"
+        if self.activation == SIGMOID:
+            activ_str = "Sigmoid"
+        if self.activation == SOFTMAX:
+            activ_str = "Softmax"
+        if self.activation == TANH:
+            activ_str = "Tanh"
+        return "<Output Layer> with %d inputs, %d outputs, %s activation" %(self.dim_in, self.dim_out, activ_str)
+
     def connect(self, X, v):
         super(OutputLayer, self).connect(X, v)
 
@@ -81,7 +97,6 @@ class OutputLayer(Layer):
 class SoftmaxLayer(OutputLayer):
     def __init__(self, dim_in, dim_out):
         super(SoftmaxLayer, self).__init__(dim_in, dim_out, activation = SOFTMAX)
-
 
     def connect(self, X, v):
         super(SoftmaxLayer, self).connect(X, v)
@@ -105,4 +120,56 @@ class SoftmaxLayer(OutputLayer):
             return T.mean(T.neq(self.y_pred, y))
         else:
             return T.neq(self.y_pred, y)
+
+class ConnectionSpec(object):
+    """
+    Passed as input to a NN constructor. Contains a list of layers and
+    connections between layers. Provides a function for connecting up layers once the inputs are provided. 
+    """
+    def __init__(self, layers, connections):
+        """
+        
+        :type layers: list
+        :param layers: A list of 'Layer' objects (unconnected).
+        
+        :type connections: dict
+        :param connections: a dictionary of connections whose keys are source layer indices 
+        and whose values are destination layer indices. 
+        """
+        self.layers = layers
+        self.input_layers = []
+        self.output_layers = []
+        self.CONNECTED = False
+
+        # Determine which layers are receiving (non-input)
+        receiver_idxs = set(sum(connections.values(),[]))
+
+        # Determine input, output layers
+        for (i,l) in enumerate(layers):
+            if i not in connections.keys() and i not in receiver_idxs:
+                raise RuntimeError("Layer %s not used in computation" %str(l))
+            elif i in connections.keys() and i not in receiver_idxs:
+                self.input_layers.append(l)
+            elif i not in connections.keys() and i in receiver_idxs:
+                self.output_layers.append(l)
+
+        # get connect func
+        def connect_func():
+            if self.CONNECTED:
+                raise RuntimeError("Connect_func has already been run.")
+            for src_idx in connections:
+                for dest_idx in connections[src_idx]:
+                    src, dest = (layers[src_idx], layers[dest_idx])
+                    if not src.CONNECTED:
+                        raise RuntimeError("This input layer isn't connected.")
+                    dest.connect(src.output, src.vec_out)
+            self.CONNECTED = True
+            
+        self.connecter = connect_func
+
+
+
+
+
+
 
