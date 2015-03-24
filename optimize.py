@@ -8,16 +8,22 @@ import time
 import numpy as np
 from util import as_shared
 
-def simple_sgd(train_xy, model, n_epochs = 100, batch_size = 600, learning_rate = .13, verbose = False):
+def simple_sgd(train_xy, model, n_epochs = 100, batch_size = 600, learning_rate_init = .13, anneal_lr = True, verbose = False):
     y = T.ivector('y')
     index = T.lscalar('index')
+    alpha = theano.shared(learning_rate_init, name = 'alpha', borrow = True)
     train_x, train_y = train_xy
     n_train_batches = train_x.get_value(borrow=True).shape[0] / batch_size
 
+    n_total_batches = n_train_batches * n_epochs
+
     cost = model.cost(y)
     gParams = [T.grad(cost=cost, wrt=param) for param in model.params]
-    updates = [(param, param - learning_rate * grad) 
+    updates = [(param, param - alpha * grad) 
                for (param, grad) in zip(model.params, gParams)]
+
+    if anneal_lr:
+        updates.append((alpha, alpha - (learning_rate_init/(n_train_batches * n_epochs))))
 
     train_model = theano.function(
         [index],
@@ -186,7 +192,7 @@ def uni_sgd(datasets, model, n_epochs = 100, batch_size = 100, learning_rate = .
 # Intended to work witn 'NeuralNetwork' object, so maybe should just 
 # be a class method.
 def multi_sgd(Xs, Ys, model, n_epochs = 1, batch_size = 600, 
-              learning_rate = .13, verbose = False):
+              learning_rate_init = .13, anneal_lr = True, verbose = False):
     """
 
     :type Xs: list
@@ -213,11 +219,16 @@ def multi_sgd(Xs, Ys, model, n_epochs = 1, batch_size = 600,
     
     ys = [T.ivector() for _ in dims_out]
     index = T.lscalar('index')
+    alpha = theano.shared(learning_rate_init, name = 'alpha', borrow = True)
 
     cost = model.cost(ys)
     gParams = [T.grad(cost=cost, wrt = param) for param in model.params]
-    updates = [(param, param - learning_rate * grad) for 
+    updates = [(param, param - alpha * grad) for 
                (param, grad) in zip(model.params, gParams)]
+
+    # anneal learning rate
+    if anneal_lr:
+        updates.append((alpha, alpha - learning_rate_init / (n_train_batches * n_epochs)))
 
     X_givens = {
         X_sym: X_data[index * batch_size: (index+1) * batch_size]
