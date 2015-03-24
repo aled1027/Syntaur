@@ -14,7 +14,7 @@ from itertools import islice
 
 #GLOBAL
 PUNC = set(string.punctuation)
-PATN_PATH = '/Users/jacobmenick/Desktop/Alife/patents100k.txt'
+PATN_PATH = '/Users/jmenick/Desktop/patents100k.txt'
 
 def take(n, iterable, generator = False):
     """ 
