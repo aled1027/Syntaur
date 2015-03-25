@@ -92,3 +92,8 @@ plt.show()
 - Implement ConvNet
 - Use logging rather than printing
 - Document Functions
+
+### Citation of Ideas
+- The OOP style is loosely inspired by the deeplearning.net tutorials
+- and Passage 
+- Credit to the RNN code from Razvan Pascanu, via Graham Taylor
