@@ -78,7 +78,8 @@ t = skipgram.tokenizer
 Xs, Ys, egs = skipgram_preprocess(patents, t, context_size)
 
 # Train the skipgram net with multivariate stochastic gradient descent
-errs = multi_sgd(Xs, Ys, skipgram, verbose = True, n_epochs = 1, learning_rate_init = .2, anneal_lr = True, batch_size = 10)
+errs = multi_sgd(Xs, Ys, skipgram, verbose = True, n_epochs = 1, 
+     learning_rate_init = .2, anneal_lr = True, batch_size = 600)
 
 plt.scatter(np.arange(len(errs)), errs)
 plt.show()
