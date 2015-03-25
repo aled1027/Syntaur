@@ -5,3 +5,4 @@ nohup.out
 *log
 test*
 mnist.pkl.gz
+patents100k.txt

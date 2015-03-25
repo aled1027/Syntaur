@@ -4,14 +4,14 @@ import gzip, cPickle
 
 THIS_DIR, _ = os.path.split(__file__)
 MNIST_PATH = '/'.join([THIS_DIR, 'mnist.pkl.gz'])
-PATN_PATH = '/'.join([THIS_DIR, 'patents100k.txt'])
+PATN_PATH = '/'.join([THIS_DIR, 'patents100k.txt.gz'])
 STOP_PATH = '/'.join([THIS_DIR, 'englishStop.txt'])
 
 f = gzip.open(MNIST_PATH, 'rb')
 mnist = cPickle.load(f)
 f.close()
 
-f = open(PATN_PATH, 'r')
+f = gzip.open(PATN_PATH, 'rb')
 lines = [line.replace('title:. ','').replace('. abstract:. ','') for line in f]
 f.close()
 patents = lines[:10000]
