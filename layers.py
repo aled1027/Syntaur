@@ -16,6 +16,13 @@ SOFTMAX = T.nnet.softmax
 def INIT_LO(dim_in, dim_out): return -1*np.sqrt( 6. / (dim_in + dim_out) )
 def INIT_HI(dim_in, dim_out): return np.sqrt( 6. / (dim_in + dim_out) )
 
+def AS_ONEHOT(v, n_dims, as_int = True):
+    if as_int:
+        return T.extra_ops.to_one_hot(v, nb_class = n_dims, dtype = 'int32')
+    else:
+        return T.extra_ops.to_one_hot(v, nb_class = n_dims, 
+                                      dtype = theano.config.floatX)
+
 class Layer(object):
     def __init__(self, dim_in, dim_out, prng = PRNG, activation = SIGMOID):
         self.CONNECTED = False
@@ -59,7 +66,7 @@ class Layer(object):
         else:
             self.output = self.activation(self.net_in)
             self.vec_out = self.activation(self.vec_in)
-        self.prediction = T.argmax(self.vec_out)
+        self.prediction = T.argmax(self.vec_out, axis = 0)
         self.predicter = theano.function([self.v], self.prediction)
         self.CONNECTED = True
 

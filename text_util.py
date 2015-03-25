@@ -14,7 +14,7 @@ from itertools import islice
 
 #GLOBAL
 PUNC = set(string.punctuation)
-PATN_PATH = '/Users/jmenick/Desktop/patents100k.txt'
+PATN_PATH = '/Users/jacobmenick/Desktop/Alife/patents100k.txt'
 
 def take(n, iterable, generator = False):
     """ 
@@ -212,7 +212,9 @@ class Tokenizer(object):
 def get_training_examples(sentences, tokenizer, context=1, backward = True):
     examples = []
     transformed = tokenizer.transform(sentences)    
-    for doc in transformed:
+    for (i, doc) in enumerate(transformed):
+        if (i%1000) == 0:
+            print "[get_training_examples] on %dth e.g." %i
         for i, word in enumerate(doc):
             c = doc[(i-context):i] + doc[(i+1):(i+1+context)]
             if len(c) == 2 * context:
@@ -237,9 +239,14 @@ def unit_vector(n, i):
 
 def skipgram_preprocess(sentences, t, context_size = 1):
     W = t.n_tokens
+    print "[Skipgram Preprocess] getting training exmaples"
     egs = get_training_examples(sentences, t, context_size)
-    Xs = [np.asarray(map(lambda x: unit_vector(W, x[0]), egs))] 
+    print "[Skipgram Preprocess] Getting Xs from training exs..."
+    #Xs = [np.asarray(map(lambda x: unit_vector(W, x[0]), egs))] 
+    Xs = [np.asarray(map(lambda x: x[0], egs))] 
+    print "[Skipgram Preprocess] Getting Ys from training exs..."
     Ys = [np.asarray(map(lambda x: x[1][i], egs)) for i in range(context_size*2)]
+    print "[Skipgram Preprocess] Done."
     return Xs, Ys, egs
 
 

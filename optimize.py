@@ -7,6 +7,7 @@ import theano
 import time
 import numpy as np
 from util import as_shared
+from layers import AS_ONEHOT
 
 def simple_sgd(train_xy, model, n_epochs = 100, batch_size = 600, learning_rate_init = .13, anneal_lr = True, verbose = False):
     y = T.ivector('y')
@@ -29,6 +30,7 @@ def simple_sgd(train_xy, model, n_epochs = 100, batch_size = 600, learning_rate_
         [index],
         outputs=cost,
         updates=updates,
+        mode='FAST_RUN',
         givens={
             model.X: train_x[index * batch_size : (index+1) * batch_size],
             y: train_y[index * batch_size : (index+1) * batch_size]
@@ -51,6 +53,7 @@ def get_test(test_set, model):
     return theano.function(
         inputs = [],
         outputs=model.errors(y),
+        mode='FAST_RUN',
         givens={
             model.X: test_x,
             y: test_y
@@ -63,6 +66,7 @@ def get_validate(valid_set, model):
     return theano.function(
         inputs = [],
         outputs = model.errors(y),
+        mode='FAST_RUN',
         givens ={
             model.X: valid_x,
             y: valid_y
@@ -94,6 +98,7 @@ def uni_sgd(datasets, model, n_epochs = 100, batch_size = 100, learning_rate = .
     test_model = theano.function(
         inputs = [index],
         outputs = model.errors(y),
+        mode='FAST_RUN',
         givens = {
             model.X: test_x[index * batch_size : (index+1) * batch_size],
             y: test_y[index * batch_size : (index+1) * batch_size]
@@ -103,6 +108,7 @@ def uni_sgd(datasets, model, n_epochs = 100, batch_size = 100, learning_rate = .
     validate_model = theano.function(
         inputs = [index],
         outputs = model.errors(y),
+        mode='FAST_RUN',
         givens = {
             model.X: valid_x[index * batch_size : (index+1) * batch_size],
             y: valid_y[index * batch_size : (index+1) * batch_size]
@@ -117,6 +123,7 @@ def uni_sgd(datasets, model, n_epochs = 100, batch_size = 100, learning_rate = .
         inputs = [index],
         outputs = cost,
         updates = updates,
+        mode='FAST_RUN',
         givens = {
             model.X: train_x[index * batch_size : (index+1) * batch_size],
             y: train_y[index * batch_size : (index+1) * batch_size]
@@ -191,9 +198,12 @@ def uni_sgd(datasets, model, n_epochs = 100, batch_size = 100, learning_rate = .
 # Assumes model has 'dims_in' and 'dims_out' attribute.
 # Intended to work witn 'NeuralNetwork' object, so maybe should just 
 # be a class method.
-def multi_sgd(Xs, Ys, model, n_epochs = 1, batch_size = 600, 
+def multi_sgd(Xs, Ys, model, n_epochs = 1, batch_size = 100, 
               learning_rate_init = .13, anneal_lr = True, verbose = False):
     """
+    WARNING/TODO - I've made Skipgram-specific hacks in here. This function
+    should bet turned into a Skipgram-specific 'train' class method and moved 
+    to that class definition.
 
     :type Xs: list
     :param Xs: List of theano shared variables representing the numpy input matrices.
@@ -202,9 +212,9 @@ def multi_sgd(Xs, Ys, model, n_epochs = 1, batch_size = 600,
     :param Ys: List of theano shared variables representing the numpy input label vectors.
     """
     print "[multi_sgd] Validating Inputs..."
-    dims_in = [X.shape[1] for X in Xs]
+    dims_in = [model.tokenizer.n_tokens for _ in Xs]
     # BELOW IS A SKIPGRAM-SPECIFIC HACK - FIX THIS!!
-    dims_out = [Xs[0].shape[1] for _ in Ys] 
+    dims_out = [model.tokenizer.n_tokens for _ in Ys] 
     if not(model.dims_in == dims_in):
         raise RuntimeError("Input dimension mismatch")
     if not(len(Ys) == len(model.output_layers)):
@@ -213,13 +223,20 @@ def multi_sgd(Xs, Ys, model, n_epochs = 1, batch_size = 600,
         raise RuntimeError("Number of Examples is not the same for all Xs,Ys.")
 
     print "[multi_sgd] Getting Inputs as Theano Shared Variables..."
-    Xs = map(lambda x: as_shared(x), Xs)
+    n_train_batches = Xs[0].shape[0] / batch_size
+    print "[multi_sgd] getting Xs"
+    Xs = map(lambda x: as_shared(x, True), Xs) # Get as vector.
+    Xs = [AS_ONEHOT(X, model.tokenizer.n_tokens, 'int32') for X in Xs]
+    print "[multi_sgd] getting Ys"
     Ys = map(lambda y: as_shared(y, True), Ys)
-    n_train_batches = Xs[0].get_value().shape[0] / batch_size
     
     ys = [T.ivector() for _ in dims_out]
     index = T.lscalar('index')
-    alpha = theano.shared(learning_rate_init, name = 'alpha', borrow = True)
+    alpha = theano.shared(
+        np.asarray(learning_rate_init, dtype = theano.config.floatX), 
+        name = 'alpha', 
+        borrow = True
+    )
 
     cost = model.cost(ys)
     gParams = [T.grad(cost=cost, wrt = param) for param in model.params]
@@ -250,19 +267,30 @@ def multi_sgd(Xs, Ys, model, n_epochs = 1, batch_size = 600,
         [index],
         outputs = cost,
         updates = updates,
-        givens = givens
+        givens = givens,
+        mode = 'FAST_RUN'
     )
 
-    print "[multi_sgd] Beginning training..."
+    print("[multi_sgd] Beginning training with %d epochs, %d batches of size %d, initial learning rate %f..." %
+          (n_epochs, n_train_batches, batch_size, learning_rate_init)
+      )    
+    start_time = time.clock()
+
+    errs = []
 
     for epoch_i in xrange(n_epochs):
-        print "Epoch %d. " %epoch_i
+        if not verbose:
+            print "Epoch %d. " %epoch_i
         for batch_i in xrange(n_train_batches):
             e = train_model(batch_i)
+            errs.append(e)
             if verbose:
-                print "Epoch %d, batch %d, trainining error %f" %(epoch_i, batch_i, e)
+                print "Epoch %d, batch %d, trainining error %f, alpha: %f" %(epoch_i, batch_i, e, alpha.get_value())
+
+    end_time = time.clock()
                 
-    print "[multi_sgd] Done training."
+    print "[multi_sgd] Done training. Time elapsed: %.2fm" %(end_time - start_time) / 60.
+    return errs
     
     
 

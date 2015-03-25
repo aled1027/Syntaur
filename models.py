@@ -87,13 +87,6 @@ class MLP(Model):
     def errors(self, y):
         return self.layers[self.n_layers - 1].errors(y)
 
-"""
-class SkipGram(NeuralNetwork):
-    def __init__(self, sentences, vec_size, context_size):
-        vocab, dataset = util.word2vec.preprocess(sentences)
-        super(SkipGram, self).__init__()
-"""
-
 class NeuralNetwork(object):
     """
     A class for a general neural network model. Supports multiple input layers 
@@ -101,7 +94,8 @@ class NeuralNetwork(object):
     to allow for this flexibility, and as a consequence it doesn't extend
     the earlier 'Model' OOP, as this was unintentionally univariate-chauvinistic.
     """
-    def __init__(self, dims_in, dims_out, connection_spec):
+    def __init__(self, dims_in, dims_out, connection_spec, 
+                 Xs = None, vs = None):
         """
     
         :type dims_in: list
@@ -115,14 +109,22 @@ class NeuralNetwork(object):
         """
         self.dims_in = dims_in
         self.dims_out = dims_out
-        self.Xs = [T.dmatrix() for _ in dims_in]
-        self.vs = [T.dvector() for _ in dims_in]
+        if Xs is None:
+            self.Xs = [T.dmatrix() for _ in dims_in]
+        else:
+            self.Xs = Xs
+        if vs is None:
+            self.vs = [T.dvector() for _ in dims_in]            
+        else:
+            self.vs = vs
+        print "[NN Init] Copying State from CS to NN."
         self.layers = connection_spec.layers
         self.input_layers = connection_spec.input_layers
         if not(len(self.Xs) == len(self.vs) == len(self.input_layers)):
             raise RuntimeError("The number of inputs do not agree")
 
-        # Assummes everything has been ordered correctly.
+        # Assumes everything has been ordered correctly.
+        print "[NN Init] connecting up layers"
         for l, X, v in zip(self.input_layers, self.Xs, self.vs):
             l.connect(X,v)
         connection_spec.connecter()
@@ -131,6 +133,7 @@ class NeuralNetwork(object):
         self.L1 = T.sum([abs(param).sum() for param in self.params])
         self.L2 = T.sqrt(T.sum([(param ** 2).sum() for param in self.params ]))
         #self.prediction = theano.scan(lambda x: x.prediction, sequences=self.output_layers)
+        print "[NN Init] Compiling Theano Functions."
         self.predicter = theano.function(self.vs, [x.prediction for x in self.output_layers])
 
 
@@ -163,7 +166,9 @@ class SkipGram(NeuralNetwork):
         self.tokenizer = t
         
         print "[Skipgram Init] done. Doing regular NN init."
-        super(SkipGram, self).__init__(dims_in, dims_out, cs)
+        Xs = [T.imatrix() for _ in dims_in]
+        vs = [T.ivector() for _ in dims_in]
+        super(SkipGram, self).__init__(dims_in, dims_out, cs, Xs, vs)
 
     def __str__(self):
         return "<SkipGram Model> with vocab size %d, context size %d, vec size %d" %(self.t.n_tokens, self.context_size, self.vec_size)
