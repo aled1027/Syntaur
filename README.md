@@ -58,13 +58,13 @@ visualize_image(random_image)
 
 ## Fit a SkipGram model on a patent dataset. 
 
+```
 import matplotlib.pyplot as plt
 from syntaur.datasets import patents, stoplist
 from syntaur.text_util import skipgram_preprocess
 from syntaur.models import SkipGram
 from syntaur.optimize import multi_sgd
 
-```
 sample_patents = patents[:500]
 
 # set skipgram parameters
