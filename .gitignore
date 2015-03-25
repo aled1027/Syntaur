@@ -7,4 +7,3 @@ nohup.out
 mnist.pkl.gz
 patents100k.txt
 evaluate.py
-setup.py
