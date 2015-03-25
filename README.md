@@ -84,3 +84,11 @@ errs = multi_sgd(Xs, Ys, skipgram, verbose = True, n_epochs = 1,
 plt.scatter(np.arange(len(errs)), errs)
 plt.show()
 ```
+
+### To do
+- Finish SimpleRNN implementation
+- Implement Multivariate general RNN with flexible layers. 
+- Implement LSTM
+- Implement ConvNet
+- Use logging rather than printing
+- Document Functions

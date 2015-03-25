@@ -2,7 +2,7 @@
 models.py
 """
 
-from layers import Layer, SoftmaxLayer, ConnectionSpec
+from syntaur.layers import Layer, SoftmaxLayer, RecurrentLayer, ConnectionSpec
 import text_util
 import theano
 import theano.tensor as T
@@ -172,7 +172,35 @@ class SkipGram(NeuralNetwork):
 
     def __str__(self):
         return "<SkipGram Model> with vocab size %d, context size %d, vec size %d" %(self.t.n_tokens, self.context_size, self.vec_size)
+
+# TODO: Fit this into the framework of my models. 
+class SimpleRNN(Model):
+    def __init__(self, dim_in, dim_hidden, dim_out):
+        super(SimpleRNN, self).__init__(dim_in, dim_out)
+        self.dim_hidden = dim_hidden
+        self.l = RecurrentLayer(dim_in, dim_hidden, dim_out)
+        self.S = T.matrix()
+        self.s = T.vector()
+        self.h_init = T.vector()
+
+        def step(s_current, h_prev, W_ih, W_hh, W_ho):
+            h_t = T.tanh(T.dot(s_current, W_ih) + T.dot(h_prev, W_hh))
+            y_t = T.tanh(T.dot(h_t, W_ho))
+            return h_t, y_t
+    
+        [self.H, self.Y], _ = theano.scan(
+            step,
+            sequences = self.S,
+            outputs_info = [self.h_init, None],
+            non_sequences = [self.l.W_in, self.l.W_hidden, self.l.W_out]
+        )
         
+    def error(self, t):
+        return ((self.Y - t) ** 2).sum()
+
+    def predict(self, v, h0):
+        return self.predicter(v, h0)
+    
 
 def test():
     patents = text_util.getpats(1000)

@@ -292,5 +292,5 @@ def multi_sgd(Xs, Ys, model, n_epochs = 1, batch_size = 100,
     print "[multi_sgd] Done training."
     return errs
     
-    
+# def train_rnn(Xs, Ys, rnn, learning_rate_init = .2, )    
 

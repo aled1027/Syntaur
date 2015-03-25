@@ -75,6 +75,53 @@ class Layer(object):
             raise RuntimeError("Asked to predict, but I'm not yet connected.")
         return self.predicter(x)
 
+class RecurrentLayer(object):
+    def __init__(self, dim_in, dim_hidden, dim_out, prng = PRNG, activation = TANH):
+        self.CONNECTED = False
+        self.activation = activation
+        self.dim_in = dim_in
+        self.dim_out = dim_out
+
+        # Input-to-hidden weights
+        self.W_in = theano.shared(
+            np.asarray(
+                prng.uniform(
+                    low = INIT_LO(dim_in, dim_out),
+                    high = INIT_HI(dim_in, dim_out),
+                    size = (dim_in, dim_out)
+                ),
+                dtype = theano.config.floatX
+            ),
+            borrow = True
+        )
+
+        # Hidden-to-hidden weights
+        self.W_hidden = theano.shared(
+            np.asarray(
+                prng.uniform(
+                    low = INIT_LO(dim_hidden, dim_hidden),
+                    high = INIT_HI(dim_hidden, dim_hidden),
+                    size = (dim_hidden, dim_hidden)
+                ),
+                dtype = theano.config.floatX
+            ),
+            borrow = True
+        )
+
+        # Hidden-to-hidden weights
+        self.W_out = theano.shared(
+            np.asarray(
+                prng.uniform(
+                    low = INIT_LO(dim_hidden, dim_out),
+                    high = INIT_HI(dim_hidden, dim_out),
+                    size = (dim_hidden, dim_out)
+                ),
+                dtype = theano.config.floatX
+            ),
+            borrow = True
+        )
+
+        self.params = [self.W_in, self.W_hidden, self.W_out]
 
 class OutputLayer(Layer):
     def __init__(self, dim_in, dim_out, activation = None):
