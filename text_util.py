@@ -9,8 +9,8 @@ import re
 import string
 import multiprocessing as mp
 import numpy as np
-from nltk.corpus import stopwords as nltk_stops
 from itertools import islice
+from syntaur.datasets import stoplist
 
 #GLOBAL
 PUNC = set(string.punctuation)
@@ -102,7 +102,7 @@ def parse(inString, noNum = False, noPunc = True):
     return mysplit(inString.lower())
 
 class Tokenizer(object):
-    def __init__(self, sentences = None, stopwords = nltk_stops.words('english'), 
+    def __init__(self, sentences = None, stopwords = stoplist, 
                  noNum = True, noPunc = True, verbose = False, 
                  multi_thread = False):
         self.id2token = {}
