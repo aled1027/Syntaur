@@ -10,15 +10,14 @@ I guess the best way to show you how it works is by example.
 ## Recognizing Handwritten Digits from MNIST dataset.
 
 ```
-import syntaur
 import numpy as np
-import matplotlib.pyplot as plt
-from syntaur.datasets import patents, mnist, stoplist
+
+from syntaur.datasets import mnist
 from syntaur.util import visualize_image, shared_dataset
 from syntaur.layers import Layer, SoftmaxLayer
-from syntaur.models import SkipGram, MLP
-from syntaur.optimize import uni_sgd, multi_sgd
-from syntaur.text_util import skipgram_preprocess
+from syntaur.models import MLP
+from syntaur.optimize import uni_sgd
+
 
 # load dataset
 mnist_test, _, _ = mnist
@@ -58,6 +57,12 @@ visualize_image(random_image)
 ```
 
 ## Fit a SkipGram model on a patent dataset. 
+
+import matplotlib.pyplot as plt
+from syntaur.datasets import patents, stoplist
+from syntaur.text_util import skipgram_preprocess
+from syntaur.models import SkipGram
+from syntaur.optimize import multi_sgd
 
 ```
 sample_patents = patents[:500]
