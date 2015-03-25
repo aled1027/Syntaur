@@ -289,7 +289,7 @@ def multi_sgd(Xs, Ys, model, n_epochs = 1, batch_size = 100,
 
     end_time = time.clock()
                 
-    print "[multi_sgd] Done training. Time elapsed: %.2fm" %(end_time - start_time) / 60.
+    print "[multi_sgd] Done training."
     return errs
     
     

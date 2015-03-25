@@ -1,24 +1,17 @@
-# Syntaur
-
-A bare bones neural networks library for python built with theano.
-Aims to provide maximal flexibility. 
-
-I guess the best way to show you how it works is by example. 
-
-# Examples
-
-## Recognizing Handwritten Digits from MNIST dataset.
-
-```
 import syntaur
 import numpy as np
 import matplotlib.pyplot as plt
 from syntaur.datasets import patents, mnist, stoplist
 from syntaur.util import visualize_image, shared_dataset
+from syntaur.text_util import skipgram_preprocess
 from syntaur.layers import Layer, SoftmaxLayer
 from syntaur.models import SkipGram, MLP
 from syntaur.optimize import uni_sgd, multi_sgd
-from syntaur.text_util import skipgram_preprocess
+
+
+####################################################
+# Recognizing MNIST handwritten digits with a MLP
+####################################################
 
 # load dataset
 mnist_test, _, _ = mnist
@@ -38,7 +31,7 @@ mlp_layers = [
 mlp = MLP(dim_in, dim_out, mlp_layers)
 
 # Train with stochastic (univariate) gradient descent
-uni_sgd(mnist_shared, mlp, n_epochs = 5, verbose = True, patience = 50)
+uni_sgd(mnist_shared, mlp, n_epochs = 2, verbose = True, patience = 50)
 
 # Check to see how our model does on unseen data. 
 test_x, test_y = mnist_test
@@ -55,26 +48,22 @@ print "predicted: %d, correct label: %d" %(predicted, correct_label)
 # check out the image. 
 visualize_image(random_image)
 
-```
-
-## Fit a SkipGram model on a patent dataset. 
-
-```
-sample_patents = patents[:500]
+# Fit SkipGram model on patent dataset.
+sample_patents = patents[:200]
 
 # set skipgram parameters
-vec_size, context_size = (20, 1)
+vec_size, context_size = (20, 3)
 
 # build SkipGram model
-skipgram = SkipGram(patents, vec_size = vec_size, context_size = context_size)
+skipgram = SkipGram(sample_patents, vec_size = vec_size, context_size = context_size)
 t = skipgram.tokenizer
 
 # Preprocess data to get training examples (e.g [w_3, [w_2, w_4]])
-Xs, Ys, egs = skipgram_preprocess(patents, t, context_size)
+Xs, Ys, egs = skipgram_preprocess(sample_patents, t, context_size)
 
 # Train the skipgram net with multivariate stochastic gradient descent
-errs = multi_sgd(Xs, Ys, skipgram, verbose = True, n_epochs = 1, learning_rate_init = .2, anneal_lr = True, batch_size = 10)
+errs = multi_sgd(Xs, Ys, skipgram, verbose = True, n_epochs = 1, learning_rate_init = .2, anneal_lr = True, batch_size = 600)
 
 plt.scatter(np.arange(len(errs)), errs)
 plt.show()
-```
+

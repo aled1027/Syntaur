@@ -66,7 +66,7 @@ class Layer(object):
         else:
             self.output = self.activation(self.net_in)
             self.vec_out = self.activation(self.vec_in)
-        self.prediction = T.argmax(self.vec_out, axis = 0)
+        self.prediction = T.argmax(self.vec_out)
         self.predicter = theano.function([self.v], self.prediction)
         self.CONNECTED = True
 
