@@ -3,9 +3,20 @@ models.py
 """
 
 from syntaur.layers import Layer, SoftmaxLayer, RecurrentLayer, ConnectionSpec
+from syntaur.layers import INIT_LO, INIT_HI
 import text_util
 import theano
 import theano.tensor as T
+import numpy as np
+
+# GLOBAL
+PRNG = np.random
+SIGMOID = T.nnet.sigmoid
+TANH = T.tanh
+
+# HELPERS
+def caster(x):
+    return T.cast(x, theano.config.floatX)
 
 class Model(object):
     def __init__(self, dim_in, dim_out):
@@ -175,31 +186,99 @@ class SkipGram(NeuralNetwork):
 
 # TODO: Fit this into the framework of my models. 
 class SimpleRNN(Model):
-    def __init__(self, dim_in, dim_hidden, dim_out):
+    def __init__(self, dim_in, dim_hidden, dim_out, prng = PRNG):
         super(SimpleRNN, self).__init__(dim_in, dim_out)
         self.dim_hidden = dim_hidden
-        self.l = RecurrentLayer(dim_in, dim_hidden, dim_out)
         self.S = T.matrix()
         self.s = T.vector()
-        self.h_init = T.vector()
 
-        def step(s_current, h_prev, W_ih, W_hh, W_ho):
-            h_t = T.tanh(T.dot(s_current, W_ih) + T.dot(h_prev, W_hh))
-            y_t = T.tanh(T.dot(h_t, W_ho))
+        self.h_init = theano.shared(
+            np.asarray(
+                PRNG.uniform(
+                    low = INIT_LO(0, dim_hidden),
+                    high = INIT_HI(0, dim_hidden),
+                    size = (dim_hidden,)
+                ),
+                dtype = theano.config.floatX
+            ),
+            borrow = True
+        )
+#        self.h_init = T.vector()
+
+
+        # Input-To-Hidden weight matrix
+        self.W_ih = theano.shared(
+            np.asarray(
+                PRNG.uniform(
+                    low = INIT_LO(self.dim_in, self.dim_hidden),
+                    high = INIT_HI(self.dim_in, self.dim_hidden),
+                    size = (self.dim_in, self.dim_hidden)
+                ),
+                dtype = theano.config.floatX
+            ),
+            borrow = True
+        )
+
+        # Hidden-To-Hidden weight matrix
+        self.W_hh = theano.shared(
+            np.asarray(
+                PRNG.uniform(
+                    low = INIT_LO(self.dim_hidden, self.dim_hidden),
+                    high = INIT_HI(self.dim_hidden, self.dim_hidden),
+                    size = (self.dim_hidden, self.dim_hidden)
+                ),
+                dtype = theano.config.floatX
+            ),
+            borrow = True
+        )
+
+        # Hidden-To-Output weight matrix
+        self.W_ho = theano.shared(
+            np.asarray(
+                PRNG.uniform(
+                    low = INIT_LO(self.dim_hidden, self.dim_out),
+                    high = INIT_HI(self.dim_hidden, self.dim_out),
+                    size = (self.dim_hidden, self.dim_out)
+                ),
+                dtype = theano.config.floatX
+            ),
+            borrow = True
+        )
+
+        def step(s_current, h_prev):
+            h_t = T.tanh(T.dot(s_current, self.W_ih) + 
+                         T.dot(h_prev, self.W_hh))
+            y_t = T.tanh(T.dot(h_t, self.W_ho))
             return h_t, y_t
     
         [self.H, self.Y], _ = theano.scan(
             step,
             sequences = self.S,
-            outputs_info = [self.h_init, None],
-            non_sequences = [self.l.W_in, self.l.W_hidden, self.l.W_out]
+            outputs_info = [self.h_init, None]#,
+#            non_sequences = [self.l.W_in, self.l.W_hidden, self.l.W_out]
+        )
+
+        self.params = [self.W_ih, self.W_hh, self.W_ho, self.h_init]
+
+        self.predicter = theano.function(
+            inputs=[self.S],
+            outputs=self.Y,
         )
         
     def error(self, t):
         return ((self.Y - t) ** 2).sum()
+    
+    """
+    def predict(self, v):
+        return self.predicter(v)
+    """
 
-    def predict(self, v, h0):
-        return self.predicter(v, h0)
+    def outputtage(self, X):
+        return self.outputter(X)
+
+class DeepRNN(object):
+    def __init__(self):
+        pass
     
 
 def test():
