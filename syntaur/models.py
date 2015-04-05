@@ -23,7 +23,6 @@ class Model(object):
         self.dim_in = dim_in 
         self.dim_out = dim_out
         self.X = T.dmatrix()
-        self.v = T.dvector()
         
     def predict(self, x):
         raise NotImplementedError("Model must provide a predict(.) method.")
@@ -39,7 +38,7 @@ class LogisticRegression(Model):
         super(LogisticRegression, self).__init__(dim_in, dim_out)
         self.s = SoftmaxLayer(dim_in, dim_out)
         self.params = self.s.params
-        self.s.connect(self.X, self.v)
+        self.s.connect(self.X)
 
     def predict(self, x):
         return self.s.predict(x)
@@ -58,8 +57,8 @@ class SimpleMLP(Model):
             Layer(dim_in, dim_hidden),
             SoftmaxLayer(dim_hidden, dim_out)
         ]
-        self.layers[0].connect(self.X, self.v)
-        self.layers[1].connect(self.layers[0].output, self.layers[0].vec_out)
+        self.layers[0].connect(self.X)
+        self.layers[1].connect(self.layers[0].output)
         self.prediction = self.layers[1].prediction
         self.predicter = theano.function([self.v], self.prediction)
         self.output = self.layers[1].output
@@ -79,9 +78,9 @@ class MLP(Model):
         super(MLP, self).__init__(dim_in, dim_out)
         self.n_layers = len(layers)
         self.layers = layers
-        self.layers[0].connect(self.X, self.v)
+        self.layers[0].connect(self.X)
         for i in range(1,len(layers)):
-            layers[i].connect(self.layers[i-1].output, self.layers[i-1].vec_out)
+            layers[i].connect(self.layers[i-1].output)
         self.prediction = self.layers[self.n_layers - 1].prediction
         self.predicter = theano.function([self.v], self.prediction)
         self.output = self.layers[self.n_layers - 1].output
@@ -106,7 +105,7 @@ class NeuralNetwork(object):
     the earlier 'Model' OOP, as this was unintentionally univariate-chauvinistic.
     """
     def __init__(self, dims_in, dims_out, connection_spec, 
-                 Xs = None, vs = None):
+                 Xs = None):
         """
     
         :type dims_in: list
@@ -124,20 +123,17 @@ class NeuralNetwork(object):
             self.Xs = [T.dmatrix() for _ in dims_in]
         else:
             self.Xs = Xs
-        if vs is None:
-            self.vs = [T.dvector() for _ in dims_in]            
-        else:
-            self.vs = vs
+        
         print "[NN Init] Copying State from CS to NN."
         self.layers = connection_spec.layers
         self.input_layers = connection_spec.input_layers
-        if not(len(self.Xs) == len(self.vs) == len(self.input_layers)):
+        if not(len(self.Xs) == len(self.input_layers)):
             raise RuntimeError("The number of inputs do not agree")
 
         # Assumes everything has been ordered correctly.
         print "[NN Init] connecting up layers"
-        for l, X, v in zip(self.input_layers, self.Xs, self.vs):
-            l.connect(X,v)
+        for l, X in zip(self.input_layers, self.Xs):
+            l.connect(X)
         connection_spec.connecter()
         self.output_layers = connection_spec.output_layers
         self.params = sum([l.params for l in self.layers],[])
@@ -145,7 +141,7 @@ class NeuralNetwork(object):
         self.L2 = T.sqrt(T.sum([(param ** 2).sum() for param in self.params ]))
         #self.prediction = theano.scan(lambda x: x.prediction, sequences=self.output_layers)
         print "[NN Init] Compiling Theano Functions."
-        self.predicter = theano.function(self.vs, [x.prediction for x in self.output_layers])
+        self.predicter = theano.function(self.Xs, [x.prediction for x in self.output_layers])
 
 
     # Assumes vectors given in same order as constructor CS.
@@ -178,8 +174,7 @@ class SkipGram(NeuralNetwork):
         
         print "[Skipgram Init] done. Doing regular NN init."
         Xs = [T.imatrix() for _ in dims_in]
-        vs = [T.ivector() for _ in dims_in]
-        super(SkipGram, self).__init__(dims_in, dims_out, cs, Xs, vs)
+        super(SkipGram, self).__init__(dims_in, dims_out, cs, Xs)
 
     def __str__(self):
         return "<SkipGram Model> with vocab size %d, context size %d, vec size %d" %(self.t.n_tokens, self.context_size, self.vec_size)
@@ -190,7 +185,6 @@ class SimpleRNN(Model):
         super(SimpleRNN, self).__init__(dim_in, dim_out)
         self.dim_hidden = dim_hidden
         self.S = T.matrix()
-        self.s = T.vector()
 
         self.h_init = theano.shared(
             np.asarray(
@@ -277,9 +271,50 @@ class SimpleRNN(Model):
         return self.outputter(X)
 
 class DeepRNN(object):
-    def __init__(self):
-        pass
+    def __init__(self, dim_in, dim_out, cs):
+        self.dim_in = dim_in
+        self.dim_out = dim_out
+        self.S = T.dmatrix()
+        self.layers = cs.layers
+        self.input_layers = cs.input_layers
+        self.output_layers = cs.output_layers
+
+        # Connect input to input layers
+        for l in self.input_layers:
+            l.connect(self.S)
+
+        # Connect up all the layers
+        cs.connecter()
+        self.params = sum([l.params for l in self.layers], [])
+        self.L1 = T.sum([abs(param).sum() for param in self.params])
+        self.L2 = T.sqrt(T.sum([(param ** 2).sum() for param in self.params ]))
+        self.predicter = theano.function([self.S], [l.prediction for l in self.output_layers])
+
+    # FOR NOW ASSUMES ONLY 1 INPUT AND OUTPUT LAYERS
+    def predict(self, S):
+        return self.predicter(S)
+
+    def cost(self, Y):
+        return self.output_layers[0].cost(Y)
+
+    def errors(self, Y):
+        return self.output_layers[0].errors(Y)
     
+def rt():
+    layers = [
+        RecurrentLayer(5, 50, 50),
+        RecurrentLayer(50, 100, 100),
+        RecurrentLayer(100, 100, 100),
+        SoftmaxLayer(100,10)
+    ]
+    connects = {
+        0: [1],
+        1: [2],
+        2: [3]
+    }
+    cs = ConnectionSpec(layers, connects)
+    rnn = DeepRNN(5, 10, cs)
+    return rnn
 
 def test():
     patents = text_util.getpats(1000)
@@ -287,6 +322,7 @@ def test():
     sg = SkipGram(patents, vec_size = vec_size, context_size = context_size)
     t = sg.tokenizer
     Xs, Ys, egs = text_util.skipgram_preprocess(patents, t, context_size)
+
     return patents, sg, Xs, Ys, egs, t
 
     

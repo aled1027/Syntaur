@@ -54,20 +54,19 @@ class Layer(object):
         return "<Generic Layer> with %d inputs and %d outputs" %(self.dim_in, self.dim_out)
 
         
-    def connect(self, X, v):
+    def connect(self, X):
         self.X = X
-        self.v = v
         self.net_in = T.dot(self.X, self.W) + self.b
-        self.vec_in = T.dot(self.v, self.W) + self.b
+
         if self.activation is None:
             self.output = self.net_in
-            self.vec_out = self.vec_in
+
 
         else:
             self.output = self.activation(self.net_in)
-            self.vec_out = self.activation(self.vec_in)
-        self.prediction = T.argmax(self.vec_out)
-        self.predicter = theano.function([self.v], self.prediction)
+
+        self.prediction = T.argmax(self.output, axis=1)
+        self.predicter = theano.function([self.X], self.prediction)
         self.CONNECTED = True
 
     def predict(self, x):
@@ -161,6 +160,7 @@ class RecurrentLayer(object):
             lambda x: T.argmax(x),
             sequences = self.output
         )
+        self.final_state = self.H[self.H.shape[0] - 1]
         self.outputter = theano.function([self.S], self.output)
         self.predicter = theano.function([self.S], self.prediction)
         self.CONNECTED = True
@@ -169,6 +169,7 @@ class RecurrentLayer(object):
         if not self.CONNECTED:
             raise RuntimeError("Asked to predict, but I'm not yet connected.")
         return self.predicter(X)
+        
 
 class OutputLayer(Layer):
     def __init__(self, dim_in, dim_out, activation = None):
@@ -185,8 +186,8 @@ class OutputLayer(Layer):
             activ_str = "Tanh"
         return "<Output Layer> with %d inputs, %d outputs, %s activation" %(self.dim_in, self.dim_out, activ_str)
 
-    def connect(self, X, v):
-        super(OutputLayer, self).connect(X, v)
+    def connect(self, X):
+        super(OutputLayer, self).connect(X)
 
     def cost(self, y):
         raise NotImplementedError("Output Layer must have a cost function.")
@@ -199,8 +200,8 @@ class SoftmaxLayer(OutputLayer):
     def __init__(self, dim_in, dim_out):
         super(SoftmaxLayer, self).__init__(dim_in, dim_out, activation = SOFTMAX)
 
-    def connect(self, X, v):
-        super(SoftmaxLayer, self).connect(X, v)
+    def connect(self, X):
+        super(SoftmaxLayer, self).connect(X)
         self.p_y_given_x = self.output
         self.y_pred = T.argmax(self.p_y_given_x, axis = 1)
 
@@ -263,7 +264,7 @@ class ConnectionSpec(object):
                     src, dest = (layers[src_idx], layers[dest_idx])
                     if not src.CONNECTED:
                         raise RuntimeError("This input layer isn't connected.")
-                    dest.connect(src.output, src.vec_out)
+                    dest.connect(src.output)
             self.CONNECTED = True
             
         self.connecter = connect_func
