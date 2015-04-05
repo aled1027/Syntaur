@@ -76,27 +76,39 @@ class Layer(object):
         return self.predicter(x)
 
 class RecurrentLayer(object):
-    def __init__(self, dim_in, dim_hidden, dim_out, prng = PRNG, activation = TANH):
+    def __init__(self, dim_in, dim_hidden, dim_out, prng = PRNG, activation = SIGMOID):
         self.CONNECTED = False
         self.activation = activation
         self.dim_in = dim_in
+        self.dim_hidden = dim_hidden
         self.dim_out = dim_out
 
-        # Input-to-hidden weights
-        self.W_in = theano.shared(
+        # Initial state of recurrent layer.
+        self.h_init = theano.shared(
             np.asarray(
                 prng.uniform(
-                    low = INIT_LO(dim_in, dim_out),
-                    high = INIT_HI(dim_in, dim_out),
-                    size = (dim_in, dim_out)
+                    low = INIT_LO(dim_hidden, dim_hidden),
+                    high =INIT_HI(dim_hidden, dim_hidden),
+                    size = (dim_hidden,)
                 ),
                 dtype = theano.config.floatX
             ),
             borrow = True
         )
 
-        # Hidden-to-hidden weights
-        self.W_hidden = theano.shared(
+        self.W_ih = theano.shared(
+            np.asarray(
+                prng.uniform(
+                    low = INIT_LO(dim_in, dim_hidden),
+                    high = INIT_HI(dim_in, dim_hidden),
+                    size = (dim_in, dim_hidden)
+                ),
+                dtype = theano.config.floatX
+            ),
+            borrow = True
+        )
+
+        self.W_hh = theano.shared(
             np.asarray(
                 prng.uniform(
                     low = INIT_LO(dim_hidden, dim_hidden),
@@ -108,8 +120,7 @@ class RecurrentLayer(object):
             borrow = True
         )
 
-        # Hidden-to-hidden weights
-        self.W_out = theano.shared(
+        self.W_ho = theano.shared(
             np.asarray(
                 prng.uniform(
                     low = INIT_LO(dim_hidden, dim_out),
@@ -120,8 +131,44 @@ class RecurrentLayer(object):
             ),
             borrow = True
         )
+                
+        self.params = [self.h_init, self.W_ih, self.W_hh, self.W_ho]
+        
+    def set_h_init(self, v):
+        self.h_init = v
+        if self.CONNECTED:
+            self.connect(self, self.S) # re-connect so that new h_init is used.
+        self.params = [self.h_init, self.W_ih, self.W_hh, self.W_ho]
 
-        self.params = [self.W_in, self.W_hidden, self.W_out]
+    def connect(self, S):
+        self.S = S
+        def step(s_current, h_prev):
+            h_t = self.activation(
+                T.dot(s_current, self.W_ih) + 
+                T.dot(h_prev, self.W_hh)
+            )
+            y_t = self.activation(
+                T.dot(h_t, self.W_ho)
+            )
+            return h_t, y_t
+        [self.H, self.output], _ = theano.scan(
+            step,
+            sequences = self.S,
+            outputs_info = [self.h_init, None]
+        )
+        
+        self.prediction, _ = theano.map(
+            lambda x: T.argmax(x),
+            sequences = self.output
+        )
+        self.outputter = theano.function([self.S], self.output)
+        self.predicter = theano.function([self.S], self.prediction)
+        self.CONNECTED = True
+        
+    def predict(self, X):
+        if not self.CONNECTED:
+            raise RuntimeError("Asked to predict, but I'm not yet connected.")
+        return self.predicter(X)
 
 class OutputLayer(Layer):
     def __init__(self, dim_in, dim_out, activation = None):
